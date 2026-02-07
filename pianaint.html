@@ -1,0 +1,1023 @@
+<?php
+// index.php — single page piano (PHP only used to serve the page)
+?><!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Piano WebAudio — C to C + 16 Poly</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#0f1b33;
+    --panel2:#0c162b;
+    --text:#e7eefc;
+    --muted:#9bb0d7;
+    --accent:#7bd3ff;
+    --accent2:#a7ffb0;
+    --danger:#ff6b6b;
+    --keyW:#f6f7fb;
+    --keyW2:#e8ebf5;
+    --keyB:#11131a;
+    --keyB2:#1b1f2a;
+    --shadow: 0 12px 40px rgba(0,0,0,.35);
+    --radius:18px;
+  }
+
+  html,body{height:100%;background:radial-gradient(1200px 800px at 20% 0%, #14244a 0%, var(--bg) 55%, #070b14 100%);margin:0;font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;}
+  *{box-sizing:border-box}
+  .wrap{max-width:1200px;margin:0 auto;padding:18px}
+  .top{
+    display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;
+  }
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    color:var(--text);
+  }
+  .header{
+    padding:16px 16px 10px 16px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+  }
+  .title{
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .title h1{margin:0;font-size:18px;letter-spacing:.2px}
+  .title p{margin:0;color:var(--muted);font-size:12.5px}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    appearance:none;border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.06);
+    color:var(--text);
+    padding:10px 12px;border-radius:12px;
+    cursor:pointer;font-weight:650;letter-spacing:.2px;
+    transition:transform .05s ease, background .15s ease, border-color .15s ease;
+  }
+  button:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.18)}
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(135deg, rgba(123,211,255,.25), rgba(167,255,176,.16));border-color:rgba(123,211,255,.35)}
+  button.danger{background:rgba(255,107,107,.12);border-color:rgba(255,107,107,.35)}
+  button.small{padding:8px 10px;border-radius:10px;font-size:13px}
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap:14px;
+    width:100%;
+  }
+  @media (max-width: 980px){
+    .grid{grid-template-columns:1fr}
+  }
+
+  .panel{padding:14px 16px 16px 16px}
+  .panel h2{margin:0 0 10px 0;font-size:15px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:170px}
+  label{color:var(--muted);font-size:12px}
+  select,input[type="range"],input[type="file"],input[type="number"]{
+    width:100%;
+    background:rgba(0,0,0,.18);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--text);
+    border-radius:12px;
+    padding:10px 10px;
+    outline:none;
+  }
+  input[type="range"]{padding:10px}
+  input[type="number"]{padding:10px}
+
+  .status{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:14px;
+    background:rgba(0,0,0,.18);
+    border:1px solid rgba(255,255,255,.10);
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between
+  }
+  .status .left{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .pill{
+    padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.06);
+    font-size:12px;color:var(--muted)
+  }
+  .pill strong{color:var(--text)}
+  .kbd{
+    padding:2px 8px;border-radius:10px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.10);
+    font-size:12px;color:var(--text)
+  }
+
+  /* Piano */
+  .pianoWrap{padding:14px 16px 18px 16px}
+  .pianoHeader{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    margin-bottom:12px
+  }
+  .pianoHeader .hint{color:var(--muted);font-size:12.5px}
+  .keyboard{
+    position:relative;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:manipulation;
+    width:100%;
+    height:260px;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:16px;
+    overflow:hidden;
+  }
+  .whiteKeys{
+    display:grid;
+    grid-template-columns: repeat(8, 1fr); /* C D E F G A B C */
+    height:100%;
+  }
+  .wkey{
+    position:relative;
+    background:linear-gradient(180deg, var(--keyW), var(--keyW2));
+    border-right:1px solid rgba(0,0,0,.10);
+    height:100%;
+    display:flex;align-items:flex-end;justify-content:center;
+    padding-bottom:12px;
+    color:#223;
+    font-weight:800;
+  }
+  .wkey:last-child{border-right:none}
+  .wkey.active{
+    background:linear-gradient(180deg, rgba(123,211,255,.95), rgba(167,255,176,.75));
+  }
+  .wkey .sub{font-weight:700;font-size:12px;opacity:.75;margin-left:6px}
+
+  .blackKeys{
+    position:absolute;left:0;top:0;height:62%;width:100%;
+    pointer-events:none;
+  }
+  .bkey{
+    pointer-events:auto;
+    position:absolute;top:0;
+    width:10.5%;
+    height:100%;
+    background:linear-gradient(180deg, var(--keyB2), var(--keyB));
+    border:1px solid rgba(255,255,255,.08);
+    border-top:none;
+    border-radius:0 0 10px 10px;
+    box-shadow: 0 10px 20px rgba(0,0,0,.35);
+    display:flex;align-items:flex-end;justify-content:center;
+    padding-bottom:10px;
+    color:#dfe8ff;
+    font-weight:800;
+  }
+  .bkey.active{
+    background:linear-gradient(180deg, rgba(123,211,255,.75), rgba(12,22,43,.85));
+    border-color:rgba(123,211,255,.35)
+  }
+  .noteTag{
+    font-size:12px;opacity:.9
+  }
+
+  /* Modal */
+  .modalBack{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.55);
+    display:none;align-items:center;justify-content:center;
+    padding:18px;
+  }
+  .modalBack.show{display:flex}
+  .modal{
+    width:min(920px, 100%);
+    background:linear-gradient(180deg, rgba(15,27,51,.98), rgba(12,22,43,.98));
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:18px;
+    box-shadow:var(--shadow);
+    color:var(--text);
+    overflow:hidden;
+  }
+  .modalTop{
+    padding:14px 16px;
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    border-bottom:1px solid rgba(255,255,255,.08)
+  }
+  .modalTop h3{margin:0;font-size:15px}
+  .modalBody{padding:14px 16px}
+  .intGrid{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:12px;
+  }
+  @media (max-width: 720px){
+    .intGrid{grid-template-columns:1fr}
+  }
+  .intItem{
+    padding:12px;border-radius:14px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(0,0,0,.18);
+  }
+  .intItem .topline{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px
+  }
+  .intItem .topline .n{font-weight:850}
+  .intItem .topline .v{color:var(--muted);font-size:12px}
+  .intItem input[type="range"]{width:100%}
+  .modalFoot{
+    padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;
+    border-top:1px solid rgba(255,255,255,.08)
+  }
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card header">
+    <div class="title">
+      <h1>Piano WebAudio (C→C con diesis/bemolli) — 16 voci polifoniche</h1>
+      <p>Click/touch sulle note. Puoi caricare un WAV (es. rawbass.wav) e “pitcharlo” su ogni tasto. Intervalli modificabili in cents per nota.</p>
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="btnStart">Attiva Audio</button>
+      <button id="btnIntervals">Modifica intervalli</button>
+      <button id="btnPlay16" class="small">Suona 16 insieme</button>
+      <button id="btnStopAll" class="danger small">Stop</button>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+
+    <div class="card pianoWrap">
+      <div class="pianoHeader">
+        <div class="hint">
+          Suggerimenti: <span class="kbd">Mouse down</span> per tenere premuto · <span class="kbd">Shift</span> = sustain toggle · Multi-touch su mobile.
+        </div>
+        <div class="hint">Range: <strong>C4</strong> → <strong>C5</strong></div>
+      </div>
+
+      <div class="keyboard" id="keyboard">
+        <div class="whiteKeys" id="whiteKeys"></div>
+        <div class="blackKeys" id="blackKeys"></div>
+      </div>
+
+      <div class="status">
+        <div class="left">
+          <div class="pill">Stato: <strong id="audioState">non attivo</strong></div>
+          <div class="pill">Voci attive: <strong id="voicesActive">0</strong> / 16</div>
+          <div class="pill">Note: <strong id="notesActive">—</strong></div>
+        </div>
+        <div class="pill">Tuning: <strong id="tuningLabel">Equal</strong> <span class="muted">(cents per nota)</span></div>
+      </div>
+    </div>
+
+    <div class="card panel">
+      <h2>Suono</h2>
+      <div class="row">
+        <div class="field" style="min-width:220px">
+          <label>Fonte</label>
+          <select id="sourceType">
+            <option value="osc">Oscillatore</option>
+            <option value="sample">Sample WAV</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:220px">
+          <label>Forma d’onda (osc)</label>
+          <select id="waveType">
+            <option value="sine">sine</option>
+            <option value="triangle">triangle</option>
+            <option value="sawtooth">sawtooth</option>
+            <option value="square">square</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:260px">
+          <label>Carica WAV (sample)</label>
+          <input type="file" id="sampleFile" accept="audio/wav,audio/x-wav,audio/*" />
+        </div>
+
+        <div class="field" style="min-width:170px">
+          <label>Nota di riferimento sample</label>
+          <select id="sampleRoot">
+            <option value="C4">C4</option>
+            <option value="A4" selected>A4</option>
+            <option value="C3">C3</option>
+            <option value="C5">C5</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="row">
+        <div class="field">
+          <label>Volume master</label>
+          <input type="range" id="masterVol" min="0" max="1" step="0.001" value="0.8">
+        </div>
+        <div class="field">
+          <label>Attack (s)</label>
+          <input type="range" id="att" min="0" max="1.5" step="0.001" value="0.01">
+        </div>
+        <div class="field">
+          <label>Decay (s)</label>
+          <input type="range" id="dec" min="0" max="2.0" step="0.001" value="0.12">
+        </div>
+        <div class="field">
+          <label>Sustain (0–1)</label>
+          <input type="range" id="sus" min="0" max="1" step="0.001" value="0.7">
+        </div>
+        <div class="field">
+          <label>Release (s)</label>
+          <input type="range" id="rel" min="0.01" max="4.0" step="0.001" value="0.35">
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="row">
+        <div class="field">
+          <label>Polifonia max</label>
+          <input type="number" id="polyMax" min="1" max="16" value="16">
+        </div>
+        <div class="field" style="min-width:220px">
+          <label>Sustain (hold)</label>
+          <select id="sustainMode">
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:260px">
+          <label>Utility</label>
+          <div class="row" style="gap:10px">
+            <button id="btnGenSine" class="small">Crea “suonosine” (download WAV)</button>
+            <button id="btnResetIntervals" class="small">Reset intervalli</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin:12px 0 0 0;font-size:12.5px;line-height:1.4">
+        Nota: la modalità “Sample” usa <em>pitch shifting</em> via playbackRate (non time-stretch). Se vuoi un “rawbass.wav”, caricalo qui: verrà accordato per ogni tasto.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal intervalli -->
+<div class="modalBack" id="modalBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalTop">
+      <h3>Modifica intervalli (cents per nota, relativo all’equal temperament)</h3>
+      <div class="btnrow">
+        <button id="btnCloseModal" class="small">Chiudi</button>
+      </div>
+    </div>
+    <div class="modalBody">
+      <p class="muted" style="margin-top:0">
+        Ogni slider applica un offset in <strong>cents</strong> alla nota (es. +10 cents). 100 cents = 1 semitono.
+      </p>
+      <div class="intGrid" id="intGrid"></div>
+    </div>
+    <div class="modalFoot">
+      <button id="btnSetJust" class="small">Preset “Just-ish” (C maggiore)</button>
+      <button id="btnZero" class="small">Azzera</button>
+      <button id="btnApply" class="primary">Applica</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ====== Notes map (C4 -> C5) including black keys ======
+  // We label enharmonics with sharps (e.g., C#) but show also Db in tag.
+  const NOTE_ORDER = [
+    { id:"C4",  name:"C",  enh:"",    midi:60, white:true },
+    { id:"C#4", name:"C#", enh:"Db",  midi:61, white:false },
+    { id:"D4",  name:"D",  enh:"",    midi:62, white:true },
+    { id:"D#4", name:"D#", enh:"Eb",  midi:63, white:false },
+    { id:"E4",  name:"E",  enh:"",    midi:64, white:true },
+    { id:"F4",  name:"F",  enh:"",    midi:65, white:true },
+    { id:"F#4", name:"F#", enh:"Gb",  midi:66, white:false },
+    { id:"G4",  name:"G",  enh:"",    midi:67, white:true },
+    { id:"G#4", name:"G#", enh:"Ab",  midi:68, white:false },
+    { id:"A4",  name:"A",  enh:"",    midi:69, white:true },
+    { id:"A#4", name:"A#", enh:"Bb",  midi:70, white:false },
+    { id:"B4",  name:"B",  enh:"",    midi:71, white:true },
+    { id:"C5",  name:"C",  enh:"",    midi:72, white:true }
+  ];
+
+  // White key layout positions (8 whites) and black key positions in between
+  const WHITE_IDS = ["C4","D4","E4","F4","G4","A4","B4","C5"];
+  const BLACK_LAYOUT = [
+    // left position as percentage relative to keyboard width
+    // these align above gap between whites: C# between C and D, etc.
+    { id:"C#4", left: 8.2 },
+    { id:"D#4", left: 20.7 },
+    { id:"F#4", left: 45.9 },
+    { id:"G#4", left: 58.3 },
+    { id:"A#4", left: 70.8 }
+  ];
+
+  // ====== Audio Engine (16 voices) ======
+  let ctx = null;
+  let master = null;
+  let limiter = null;
+
+  const voices = [];         // active voices
+  const maxVoicesHard = 16;  // absolute limit
+  let sampleBuffer = null;
+
+  const ui = {
+    btnStart: document.getElementById("btnStart"),
+    btnIntervals: document.getElementById("btnIntervals"),
+    btnPlay16: document.getElementById("btnPlay16"),
+    btnStopAll: document.getElementById("btnStopAll"),
+    audioState: document.getElementById("audioState"),
+    voicesActive: document.getElementById("voicesActive"),
+    notesActive: document.getElementById("notesActive"),
+    tuningLabel: document.getElementById("tuningLabel"),
+
+    sourceType: document.getElementById("sourceType"),
+    waveType: document.getElementById("waveType"),
+    sampleFile: document.getElementById("sampleFile"),
+    sampleRoot: document.getElementById("sampleRoot"),
+
+    masterVol: document.getElementById("masterVol"),
+    att: document.getElementById("att"),
+    dec: document.getElementById("dec"),
+    sus: document.getElementById("sus"),
+    rel: document.getElementById("rel"),
+    polyMax: document.getElementById("polyMax"),
+    sustainMode: document.getElementById("sustainMode"),
+
+    btnGenSine: document.getElementById("btnGenSine"),
+    btnResetIntervals: document.getElementById("btnResetIntervals"),
+
+    whiteKeys: document.getElementById("whiteKeys"),
+    blackKeys: document.getElementById("blackKeys"),
+
+    modalBack: document.getElementById("modalBack"),
+    intGrid: document.getElementById("intGrid"),
+    btnCloseModal: document.getElementById("btnCloseModal"),
+    btnApply: document.getElementById("btnApply"),
+    btnZero: document.getElementById("btnZero"),
+    btnSetJust: document.getElementById("btnSetJust"),
+  };
+
+  // cents offsets per semitone index from C4 within this range:
+  // C4=0, C#4=1, ... C5=12
+  const centsOffsets = new Array(13).fill(0);
+  let tuningName = "Equal";
+
+  function midiToFreq(midi){
+    return 440 * Math.pow(2, (midi - 69)/12);
+  }
+
+  function noteIndexById(id){
+    return NOTE_ORDER.findIndex(n => n.id === id);
+  }
+
+  function effectiveFreq(note){
+    const i = noteIndexById(note.id);
+    const base = midiToFreq(note.midi);
+    const cents = centsOffsets[i] || 0;
+    return base * Math.pow(2, cents/1200);
+  }
+
+  function ensureAudio(){
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    master = ctx.createGain();
+    master.gain.value = parseFloat(ui.masterVol.value);
+
+    // simple safety limiter via DynamicsCompressor
+    limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 24;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+
+    master.connect(limiter);
+    limiter.connect(ctx.destination);
+
+    refreshState();
+  }
+
+  async function startAudio(){
+    ensureAudio();
+    if (ctx.state !== "running") await ctx.resume();
+    refreshState();
+  }
+
+  function refreshState(){
+    ui.audioState.textContent = ctx ? ctx.state : "non attivo";
+    ui.voicesActive.textContent = String(voices.length);
+    const names = voices.map(v => v.note.id.replace("4","").replace("5","")).join(", ");
+    ui.notesActive.textContent = names || "—";
+    ui.tuningLabel.textContent = tuningName;
+  }
+
+  function getADSR(){
+    const A = parseFloat(ui.att.value);
+    const D = parseFloat(ui.dec.value);
+    const S = parseFloat(ui.sus.value);
+    const R = parseFloat(ui.rel.value);
+    return {A,D,S,R};
+  }
+
+  function getPolyMax(){
+    const v = Math.max(1, Math.min(maxVoicesHard, parseInt(ui.polyMax.value || "16", 10)));
+    return v;
+  }
+
+  function voiceStealIfNeeded(){
+    const polyMax = getPolyMax();
+    while (voices.length >= polyMax){
+      // steal oldest
+      const v = voices.shift();
+      try { v.stop(true); } catch(e) {}
+    }
+  }
+
+  function createAmpEnvelope(gainNode, now, adsr){
+    // Start at 0
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(0.0001, now);
+    // Attack to 1
+    gainNode.gain.linearRampToValueAtTime(1.0, now + adsr.A);
+    // Decay to Sustain
+    gainNode.gain.linearRampToValueAtTime(Math.max(0.0001, adsr.S), now + adsr.A + adsr.D);
+  }
+
+  function releaseAmpEnvelope(gainNode, now, adsr){
+    gainNode.gain.cancelScheduledValues(now);
+    // go from current to 0
+    const cur = Math.max(0.0001, gainNode.gain.value);
+    gainNode.gain.setValueAtTime(cur, now);
+    gainNode.gain.linearRampToValueAtTime(0.0001, now + adsr.R);
+  }
+
+  function makeVoice(note){
+    ensureAudio();
+    const now = ctx.currentTime;
+    const adsr = getADSR();
+
+    const vGain = ctx.createGain();
+    vGain.gain.value = 0.0001;
+    vGain.connect(master);
+
+    const srcType = ui.sourceType.value;
+
+    let stopFn = null;
+    let setFreqFn = null;
+
+    if (srcType === "sample"){
+      if (!sampleBuffer){
+        // fallback to osc if no sample
+        return makeOscVoice(note, vGain, now, adsr);
+      }
+      const bs = ctx.createBufferSource();
+      bs.buffer = sampleBuffer;
+      bs.loop = true; // more "instrument-like" for sustained notes
+
+      // compute playbackRate relative to sampleRoot
+      const rootId = ui.sampleRoot.value;
+      const rootNote = NOTE_ORDER.find(n => n.id === rootId) || NOTE_ORDER.find(n => n.id === "A4");
+      const fRoot = effectiveFreq(rootNote);
+      const fTarget = effectiveFreq(note);
+      const rate = fTarget / fRoot;
+
+      bs.playbackRate.setValueAtTime(rate, now);
+      bs.connect(vGain);
+      bs.start(now);
+
+      stopFn = (immediate=false) => {
+        const t = ctx.currentTime;
+        if (immediate){
+          try { bs.stop(t); } catch(e){}
+          try { vGain.disconnect(); } catch(e){}
+          return;
+        }
+        releaseAmpEnvelope(vGain, t, adsr);
+        try { bs.stop(t + adsr.R + 0.02); } catch(e){}
+        setTimeout(() => { try{ vGain.disconnect(); }catch(e){} }, (adsr.R + 0.05)*1000);
+      };
+
+      setFreqFn = (newFreq) => {
+        const t = ctx.currentTime;
+        const newRate = newFreq / fRoot;
+        bs.playbackRate.setTargetAtTime(newRate, t, 0.005);
+      };
+
+      createAmpEnvelope(vGain, now, adsr);
+
+      return { note, gain:vGain, stop:stopFn, setFreq:setFreqFn, startedAt: now };
+    }
+
+    // Oscillator
+    return makeOscVoice(note, vGain, now, adsr);
+  }
+
+  function makeOscVoice(note, vGain, now, adsr){
+    const osc = ctx.createOscillator();
+    osc.type = ui.waveType.value;
+    const f = effectiveFreq(note);
+    osc.frequency.setValueAtTime(f, now);
+    osc.connect(vGain);
+    osc.start(now);
+
+    createAmpEnvelope(vGain, now, adsr);
+
+    const stopFn = (immediate=false) => {
+      const t = ctx.currentTime;
+      if (immediate){
+        try { osc.stop(t); } catch(e){}
+        try { vGain.disconnect(); } catch(e){}
+        return;
+      }
+      releaseAmpEnvelope(vGain, t, adsr);
+      try { osc.stop(t + adsr.R + 0.02); } catch(e){}
+      setTimeout(() => { try{ vGain.disconnect(); }catch(e){} }, (adsr.R + 0.05)*1000);
+    };
+
+    const setFreqFn = (newFreq) => {
+      const t = ctx.currentTime;
+      osc.frequency.setTargetAtTime(newFreq, t, 0.005);
+    };
+
+    return { note, gain:vGain, stop:stopFn, setFreq:setFreqFn, startedAt: now };
+  }
+
+  function noteOn(note){
+    if (!ctx || ctx.state !== "running") return;
+
+    // if already active same note, ignore (or retrigger)
+    const existing = voices.find(v => v.note.id === note.id);
+    if (existing) return;
+
+    voiceStealIfNeeded();
+    const v = makeVoice(note);
+    voices.push(v);
+    markKeyActive(note.id, true);
+    refreshState();
+  }
+
+  function noteOff(note){
+    if (!ctx || ctx.state !== "running") return;
+
+    if (ui.sustainMode.value === "on") {
+      // sustain keeps sound until Stop or sustain off
+      markKeyActive(note.id, false); // visually release
+      refreshState();
+      return;
+    }
+
+    const idx = voices.findIndex(v => v.note.id === note.id);
+    if (idx >= 0){
+      const v = voices[idx];
+      voices.splice(idx,1);
+      try { v.stop(false); } catch(e) {}
+      markKeyActive(note.id, false);
+      refreshState();
+    }
+  }
+
+  function stopAll(immediate=false){
+    while (voices.length){
+      const v = voices.shift();
+      try { v.stop(immediate); } catch(e){}
+    }
+    // clear visuals
+    NOTE_ORDER.forEach(n => markKeyActive(n.id, false));
+    refreshState();
+  }
+
+  function retuneActiveVoices(){
+    // called after changing cents offsets
+    voices.forEach(v => {
+      const f = effectiveFreq(v.note);
+      try { v.setFreq(f); } catch(e){}
+    });
+  }
+
+  // ====== Keyboard UI ======
+  function buildKeyboard(){
+    // White keys
+    ui.whiteKeys.innerHTML = "";
+    WHITE_IDS.forEach(id => {
+      const note = NOTE_ORDER.find(n => n.id === id);
+      const el = document.createElement("div");
+      el.className = "wkey";
+      el.dataset.note = id;
+      el.innerHTML = `<div><span>${note.name}</span><span class="sub">${note.id.endsWith("5") ? "5" : "4"}</span></div>`;
+      ui.whiteKeys.appendChild(el);
+    });
+
+    // Black keys overlay
+    ui.blackKeys.innerHTML = "";
+    BLACK_LAYOUT.forEach(b => {
+      const note = NOTE_ORDER.find(n => n.id === b.id);
+      const el = document.createElement("div");
+      el.className = "bkey";
+      el.dataset.note = b.id;
+      el.style.left = `${b.left}%`;
+      el.innerHTML = `<div class="noteTag">${note.name}${note.enh ? "<br><span style='font-weight:700;opacity:.7'>"+note.enh+"</span>" : ""}</div>`;
+      ui.blackKeys.appendChild(el);
+    });
+  }
+
+  function keyElById(id){
+    return document.querySelector(`[data-note="${CSS.escape(id)}"]`);
+  }
+
+  function markKeyActive(id, on){
+    const el = keyElById(id);
+    if (!el) return;
+    el.classList.toggle("active", !!on);
+  }
+
+  // pointer handling with multi-touch
+  const pointerToNote = new Map();
+
+  function findNoteFromTarget(t){
+    const dn = t?.dataset?.note;
+    if (!dn) return null;
+    return NOTE_ORDER.find(n => n.id === dn) || null;
+  }
+
+  function onPointerDown(e){
+    const note = findNoteFromTarget(e.target);
+    if (!note) return;
+
+    e.preventDefault();
+    e.target.setPointerCapture?.(e.pointerId);
+
+    pointerToNote.set(e.pointerId, note.id);
+    noteOn(note);
+  }
+
+  function onPointerUp(e){
+    const id = pointerToNote.get(e.pointerId);
+    if (!id) return;
+    pointerToNote.delete(e.pointerId);
+    const note = NOTE_ORDER.find(n => n.id === id);
+    if (note) noteOff(note);
+  }
+
+  function onPointerCancel(e){
+    onPointerUp(e);
+  }
+
+  function attachKeyHandlers(){
+    const keys = document.querySelectorAll("[data-note]");
+    keys.forEach(k => {
+      k.addEventListener("pointerdown", onPointerDown);
+      k.addEventListener("pointerup", onPointerUp);
+      k.addEventListener("pointercancel", onPointerCancel);
+      k.addEventListener("pointerleave", (e) => {
+        // if pointer leaves while pressed, treat as release (unless capture)
+        // we keep simple: if this pointer was mapped, release
+        if (pointerToNote.has(e.pointerId)) onPointerUp(e);
+      });
+    });
+  }
+
+  // ====== Interval Modal ======
+  function buildIntervalModal(){
+    ui.intGrid.innerHTML = "";
+    NOTE_ORDER.forEach((n, i) => {
+      const item = document.createElement("div");
+      item.className = "intItem";
+      const val = centsOffsets[i] || 0;
+
+      item.innerHTML = `
+        <div class="topline">
+          <div class="n">${n.id} <span class="muted">${n.enh ? "(" + n.enh + ")" : ""}</span></div>
+          <div class="v"><span id="cval_${i}">${val.toFixed(1)}</span> cents</div>
+        </div>
+        <input type="range" min="-50" max="50" step="0.1" value="${val}" data-i="${i}">
+      `;
+      ui.intGrid.appendChild(item);
+    });
+
+    ui.intGrid.querySelectorAll('input[type="range"]').forEach(r => {
+      r.addEventListener("input", () => {
+        const i = parseInt(r.dataset.i, 10);
+        document.getElementById(`cval_${i}`).textContent = parseFloat(r.value).toFixed(1);
+      });
+    });
+  }
+
+  function openModal(){
+    buildIntervalModal();
+    ui.modalBack.classList.add("show");
+    ui.modalBack.setAttribute("aria-hidden","false");
+  }
+
+  function closeModal(){
+    ui.modalBack.classList.remove("show");
+    ui.modalBack.setAttribute("aria-hidden","true");
+  }
+
+  function applyModal(){
+    ui.intGrid.querySelectorAll('input[type="range"]').forEach(r => {
+      const i = parseInt(r.dataset.i, 10);
+      centsOffsets[i] = parseFloat(r.value);
+    });
+    tuningName = "Custom";
+    retuneActiveVoices();
+    refreshState();
+    closeModal();
+  }
+
+  function zeroIntervals(){
+    for (let i=0;i<centsOffsets.length;i++) centsOffsets[i]=0;
+    tuningName = "Equal";
+    retuneActiveVoices();
+    refreshState();
+    closeModal();
+  }
+
+  function setJustishForCMajor(){
+    // Very common “just intonation” ratios for C major scale (approx),
+    // applied as cents offsets relative to equal temperament.
+    // We set offsets for white notes in C major; black notes remain 0 by default.
+    // Values are approximations:
+    // C: 0
+    // D (9/8): +3.91
+    // E (5/4): -13.69
+    // F (4/3): -1.96
+    // G (3/2): +1.96
+    // A (5/3): -15.64
+    // B (15/8): -11.73
+    // C: 0
+    const map = {
+      "C4":0, "D4":3.91, "E4":-13.69, "F4":-1.96, "G4":1.96, "A4":-15.64, "B4":-11.73, "C5":0
+    };
+    NOTE_ORDER.forEach((n,i)=>{
+      centsOffsets[i] = (map[n.id] !== undefined) ? map[n.id] : 0;
+    });
+    tuningName = "Just-ish (C)";
+    retuneActiveVoices();
+    refreshState();
+    closeModal();
+  }
+
+  // ====== Sample Load ======
+  async function loadSampleFromFile(file){
+    ensureAudio();
+    const ab = await file.arrayBuffer();
+    sampleBuffer = await ctx.decodeAudioData(ab);
+  }
+
+  // ====== Generate “suonosine” WAV (download) ======
+  // Creates a clean sine WAV in browser (A4 by default) so you can have a file like "suonosine.wav".
+  function floatTo16BitPCM(view, offset, input){
+    for (let i=0;i<input.length;i++, offset+=2){
+      let s = Math.max(-1, Math.min(1, input[i]));
+      view.setInt16(offset, s < 0 ? s*0x8000 : s*0x7FFF, true);
+    }
+  }
+  function writeString(view, offset, str){
+    for (let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i));
+  }
+  function encodeWAV(samples, sampleRate){
+    const buffer = new ArrayBuffer(44 + samples.length*2);
+    const view = new DataView(buffer);
+
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + samples.length*2, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);     // PCM
+    view.setUint16(22, 1, true);     // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate*2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, "data");
+    view.setUint32(40, samples.length*2, true);
+
+    floatTo16BitPCM(view, 44, samples);
+    return buffer;
+  }
+  function genSineWavDownload(){
+    const sampleRate = 44100;
+    const seconds = 2.5;
+    const N = Math.floor(sampleRate * seconds);
+    const freq = 440; // A4
+    const out = new Float32Array(N);
+    for (let i=0;i<N;i++){
+      const t = i/sampleRate;
+      // gentle fade in/out to avoid clicks
+      const fade = Math.min(1, Math.min(i/(sampleRate*0.02), (N-1-i)/(sampleRate*0.05)));
+      out[i] = Math.sin(2*Math.PI*freq*t) * 0.8 * fade;
+    }
+    const wav = encodeWAV(out, sampleRate);
+    const blob = new Blob([wav], {type:"audio/wav"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "suonosine_A4.wav";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 800);
+  }
+
+  // ====== Play 16 voices together ======
+  function play16Together(){
+    if (!ctx || ctx.state !== "running") return;
+
+    // pick up to 13 notes from C4..C5 and repeat to reach 16 by reusing transposed duplicates
+    const picked = NOTE_ORDER.slice(0); // 13
+    const extra = ["C4","E4","G4"].map(id => NOTE_ORDER.find(n => n.id===id));
+    const all = picked.concat(extra).slice(0, getPolyMax());
+
+    // start all (if not active)
+    all.forEach(n => { if (n) noteOn(n); });
+
+    // auto-release after 700ms if sustain off
+    if (ui.sustainMode.value === "off"){
+      setTimeout(() => all.forEach(n => { if(n) noteOff(n); }), 700);
+    }
+  }
+
+  // ====== Bind UI ======
+  ui.btnStart.addEventListener("click", startAudio);
+
+  ui.masterVol.addEventListener("input", () => {
+    if (master) master.gain.value = parseFloat(ui.masterVol.value);
+  });
+
+  ui.btnStopAll.addEventListener("click", () => stopAll(true));
+  ui.btnPlay16.addEventListener("click", play16Together);
+
+  ui.sampleFile.addEventListener("change", async () => {
+    const f = ui.sampleFile.files?.[0];
+    if (!f) return;
+    try{
+      await startAudio();
+      await loadSampleFromFile(f);
+      ui.sourceType.value = "sample";
+    }catch(e){
+      alert("Errore caricamento sample: " + (e?.message || e));
+    }
+  });
+
+  ui.sourceType.addEventListener("change", () => {
+    // if switching to sample without buffer, keep but fallback occurs
+  });
+
+  ui.waveType.addEventListener("change", () => {
+    // affects only new voices; existing voices keep current osc type
+  });
+
+  ui.btnIntervals.addEventListener("click", () => openModal());
+  ui.btnCloseModal.addEventListener("click", closeModal);
+  ui.modalBack.addEventListener("click", (e) => {
+    if (e.target === ui.modalBack) closeModal();
+  });
+  ui.btnApply.addEventListener("click", applyModal);
+  ui.btnZero.addEventListener("click", zeroIntervals);
+  ui.btnSetJust.addEventListener("click", setJustishForCMajor);
+
+  ui.btnResetIntervals.addEventListener("click", () => {
+    for (let i=0;i<centsOffsets.length;i++) centsOffsets[i]=0;
+    tuningName = "Equal";
+    retuneActiveVoices();
+    refreshState();
+  });
+
+  ui.btnGenSine.addEventListener("click", genSineWavDownload);
+
+  // Sustain hotkey (Shift)
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Shift"){
+      ui.sustainMode.value = "on";
+    }
+  });
+  window.addEventListener("keyup", (e) => {
+    if (e.key === "Shift"){
+      ui.sustainMode.value = "off";
+      // releasing sustain -> release all voices that are not physically held by pointer
+      stopAll(false);
+    }
+  });
+
+  // if sustain mode toggled off manually, release everything
+  ui.sustainMode.addEventListener("change", () => {
+    if (ui.sustainMode.value === "off"){
+      stopAll(false);
+    }
+  });
+
+  // Build UI
+  buildKeyboard();
+  attachKeyHandlers();
+  refreshState();
+})();
+</script>
+</body>
+</html>

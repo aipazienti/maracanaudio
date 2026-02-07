@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accordatore Chitarra Professionale</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Accordatore professionale per chitarra con riconoscimento automatico corde e zoom progressivo">
+    <meta name="theme-color" content="#2a5298">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Accordatore">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Fullscreen, no-scroll layout (desktop + mobile + tablet) */
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            height: 100dvh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            padding: 0;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: 100dvh;
+            background: white;
+            border-radius: 0;
+            padding: 16px;
+            box-shadow: none;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Keep content always visible without scroll: shrink spacing responsively */
+        h1 { margin-bottom: 0; font-size: clamp(20px, 2.4vw, 30px); }
+        .subtitle { margin-bottom: 0; font-size: clamp(12px, 1.6vw, 14px); }
+
+        .controls {
+            padding: 12px;
+            margin-bottom: 0;
+        }
+
+        .tuner-display {
+            padding: 16px;
+            margin-bottom: 0;
+            flex: 1 1 auto;
+            min-height: 0; /* allow internal flex sizing */
+        }
+
+        .strings-reference {
+            margin-top: 0;
+            gap: 8px;
+        }
+
+        /* Make meter and text scale on short screens */
+        .string-name { font-size: clamp(28px, 5vw, 48px); }
+        .current-freq { font-size: clamp(22px, 4.2vw, 36px); }
+        .tuner-meter { height: clamp(56px, 10vh, 80px); }
+
+        /* Desktop polish */
+        @media (min-width: 900px) {
+            body { align-items: center; }
+            .container {
+                max-width: 980px;
+                height: min(100dvh, 920px);
+                border-radius: 20px;
+                padding: 22px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            }
+            .controls { padding: 16px; }
+            .tuner-display { padding: 22px; }
+        }
+
+        /* Ultra-short screens (landscape phones): tighten further */
+        @media (max-height: 520px) {
+            .controls { padding: 10px; }
+            .tuner-display { padding: 12px; }
+            .status-indicator { padding: 10px; font-size: 16px; }
+            .zoom-indicator { padding: 8px 10px; }
+        }
+body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1e3c72;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .controls {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .reference-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="number"] {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #2a5298;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1e3c72;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(42, 82, 152, 0.3);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .tuner-display {
+            background: #000;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .string-detected {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .string-name {
+            font-size: 48px;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 0 0 20px #00ff00;
+        }
+
+        .target-freq {
+            font-size: 14px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .frequency-display {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .current-freq {
+            font-size: 36px;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .cents-display {
+            font-size: 18px;
+            color: #ffd700;
+            margin-top: 5px;
+        }
+
+        .tuner-meter {
+            position: relative;
+            height: 80px;
+            margin-bottom: 20px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .meter-scale {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 10px;
+        }
+
+        .scale-mark {
+            width: 2px;
+            background: #444;
+            position: relative;
+        }
+
+        .scale-mark.center {
+            width: 3px;
+            background: #00ff00;
+        }
+
+        .scale-label {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #888;
+            font-size: 12px;
+        }
+
+        .needle {
+            position: absolute;
+            top: 10px;
+            width: 4px;
+            height: 60px;
+            background: #ff0000;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: all 0.1s ease-out;
+            box-shadow: 0 0 10px #ff0000;
+        }
+
+        .needle.in-tune {
+            background: #00ff00;
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        .status-indicator {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        .status-low {
+            background: #ff4444;
+            color: white;
+        }
+
+        .status-high {
+            background: #ff8800;
+            color: white;
+        }
+
+        .status-perfect {
+            background: #00ff00;
+            color: #000;
+        }
+
+        .zoom-indicator {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .strings-reference {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .string-card {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .string-card.active {
+            border-color: #00ff00;
+            background: #e8ffe8;
+        }
+
+        .string-card-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+
+        .string-card-freq {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .listening {
+            animation: pulse 1.5s infinite;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .string-name {
+                font-size: 36px;
+            }
+            
+            .current-freq {
+                font-size: 28px;
+            }
+            
+            .strings-reference {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        /* Popup Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+
+        .modal-message {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .modal-steps {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-step {
+            display: flex;
+            align-items: start;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .modal-step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            background: #2a5298;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-primary {
+            background: #2a5298;
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            background: #1e3c72;
+        }
+
+        .modal-btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .error-title {
+            font-weight: bold;
+            color: #dc3545;
+            margin-bottom: 5px;
+        }
+
+        .error-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .permission-granted {
+            background: #e6ffe6;
+            border-left: 4px solid #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .permission-granted.show {
+            display: block;
+        }
+
+        .permission-granted-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .permission-granted-text {
+            color: #2d5016;
+            font-weight: 600;
+        }
+    
+/* ACCRAT: fullscreen container */
+.container{
+  width:100vw !important;
+  height:100dvh !important;
+  max-width:none !important;
+  max-height:none !important;
+  border-radius:0 !important;
+  overflow:hidden !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+
+/* ACCRAT: keep everything visible, no scroll */
+.tuner-display{flex:1 1 auto; min-height:0;}
+.controls{flex:0 0 auto;}
+.strings-reference{flex:0 0 auto;}
+
+/* ACCRAT: full width meter */
+.tuner-meter{
+  width:100% !important;
+  height: clamp(90px, 18vh, 160px) !important;
+  margin-bottom: clamp(10px, 2vh, 18px) !important;
+}
+.meter-scale{padding:0 clamp(10px, 2vw, 24px) !important;}
+
+@media (min-width: 900px){
+  .container{padding:22px !important;}
+}
+@media (max-height: 520px){
+  .container{padding:12px !important;}
+  .strings-reference{gap:8px !important;}
+}
+</style>
+</head>
+<body>
+<!-- Modal Popup per richiesta accesso microfono -->
+    <div class="modal-overlay" id="microphoneModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon">🎤</div>
+                <h2 class="modal-title">Richiesta Accesso Microfono</h2>
+            </div>
+            
+            <p class="modal-message">
+                Per accordare la chitarra, l'applicazione ha bisogno di accedere al microfono del tuo dispositivo.
+            </p>
+
+            <div class="modal-steps">
+                <div class="modal-step">
+                    <span class="step-number">1</span>
+                    <span>Clicca su "Consenti Accesso" qui sotto</span>
+                </div>
+                <div class="modal-step">
+                    <span class="step-number">2</span>
+                    <span>Il browser mostrerà un popup di richiesta permessi</span>
+                </div>
+                <div class="modal-step">
+                    <span class="step-number">3</span>
+                    <span>Clicca "Consenti" o "Allow" nel popup del browser</span>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeMicrophoneModal()">Annulla</button>
+                <button class="modal-btn modal-btn-primary" onclick="requestMicrophoneAccess()">🎤 Consenti Accesso</button>
+            </div>
+
+            <div class="error-message" id="errorMessage">
+                <div class="error-title">⚠️ Accesso Negato</div>
+                <div class="error-text" id="errorText">
+                    L'accesso al microfono è stato negato. Per utilizzare l'accordatore:
+                    <br><br>
+                    <strong>Chrome/Edge:</strong> Clicca sull'icona del lucchetto/microfono nella barra degli indirizzi → Impostazioni sito → Microfono → Consenti
+                    <br><br>
+                    <strong>Firefox:</strong> Clicca sull'icona del microfono nella barra degli indirizzi → Cancella blocco
+                    <br><br>
+                    <strong>Safari:</strong> Safari → Preferenze → Siti web → Microfono → Consenti
+                </div>
+            </div>
+
+            <div class="permission-granted" id="permissionGranted">
+                <div class="permission-granted-icon">✅</div>
+                <div class="permission-granted-text">Accesso consentito! Avvio accordatore...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>🎸 Accordatore Chitarra</h1>
+        <p class="subtitle">Accordatura professionale con riconoscimento automatico</p>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="referenceFreq">Frequenza di Riferimento LA (Hz)</label>
+                <div class="reference-input">
+                    <input type="number" id="referenceFreq" value="440" min="430" max="450" step="0.1">
+                    <button class="btn btn-primary" onclick="updateReference()">Applica</button>
+                </div>
+            </div>
+            
+            <div class="control-group" style="text-align: center; margin-top: 20px;">
+                <button id="startBtn" class="btn btn-primary" onclick="toggleTuner()">
+                    🎤 Avvia Accordatore
+                </button>
+            </div>
+        </div>
+
+        <div class="tuner-display" id="tunerDisplay" style="display: none;">
+            <div class="string-detected">
+                <div class="string-name" id="stringName">-</div>
+                <div class="target-freq" id="targetFreq">Suona una corda</div>
+            </div>
+
+            <div class="frequency-display">
+                <div class="current-freq" id="currentFreq">--- Hz</div>
+                <div class="cents-display" id="centsDisplay">0 cents</div>
+            </div>
+
+            <div class="tuner-meter" id="tunerMeter">
+                <div class="meter-scale" id="meterScale"></div>
+                <div class="needle" id="needle"></div>
+            </div>
+
+            <div class="status-indicator" id="statusIndicator" style="display: none;">
+                Accordatura perfetta! ✓
+            </div>
+
+            <div class="zoom-indicator" id="zoomIndicator"></div>
+        </div>
+
+        <div class="strings-reference">
+            <div class="string-card" data-string="E2">
+                <div class="string-card-name">E</div>
+                <div class="string-card-freq" id="freq-E2">82.41 Hz</div>
+            </div>
+            <div class="string-card" data-string="A2">
+                <div class="string-card-name">A</div>
+                <div class="string-card-freq" id="freq-A2">110.00 Hz</div>
+            </div>
+            <div class="string-card" data-string="D3">
+                <div class="string-card-name">D</div>
+                <div class="string-card-freq" id="freq-D3">146.83 Hz</div>
+            </div>
+            <div class="string-card" data-string="G3">
+                <div class="string-card-name">G</div>
+                <div class="string-card-freq" id="freq-G3">196.00 Hz</div>
+            </div>
+            <div class="string-card" data-string="B3">
+                <div class="string-card-name">B</div>
+                <div class="string-card-freq" id="freq-B3">246.94 Hz</div>
+            </div>
+            <div class="string-card" data-string="E4">
+                <div class="string-card-name">E</div>
+                <div class="string-card-freq" id="freq-E4">329.63 Hz</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configurazione globale
+        let audioContext;
+        let analyser;
+        let microphone;
+        let scriptProcessor;
+        let isRunning = false;
+        let referenceA4 = 440;
+        
+        // Zoom levels
+        let zoomLevel = 1; // 1 = normale (-50/+50), 2 = medio (-20/+20), 3 = fine (-10/+10)
+        let lastCents = 0;
+        let stableCount = 0;
+        const ZOOM_STABILITY_REQUIRED = 5; // Letture stabili prima di cambiare zoom
+
+        // Note standard della chitarra
+        const guitarStrings = {
+            'E2': { name: 'E (6ª)', semitone: -29 },
+            'A2': { name: 'A (5ª)', semitone: -24 },
+            'D3': { name: 'D (4ª)', semitone: -19 },
+            'G3': { name: 'G (3ª)', semitone: -14 },
+            'B3': { name: 'B (2ª)', semitone: -10 },
+            'E4': { name: 'E (1ª)', semitone: -5 }
+        };
+
+        // Calcola frequenza da LA440
+        function getFrequency(semitones) {
+            return referenceA4 * Math.pow(2, semitones / 12);
+        }
+
+        // Aggiorna tutte le frequenze di riferimento
+        function updateReference() {
+            const input = document.getElementById('referenceFreq');
+            referenceA4 = parseFloat(input.value);
+            
+            // Aggiorna le frequenze visualizzate
+            Object.keys(guitarStrings).forEach(note => {
+                const freq = getFrequency(guitarStrings[note].semitone);
+                document.getElementById(`freq-${note}`).textContent = freq.toFixed(2) + ' Hz';
+            });
+            
+            alert(`Frequenza di riferimento aggiornata a LA ${referenceA4} Hz`);
+        }
+
+        // Inizializza le frequenze
+        updateReference();
+
+        // Trova la corda più vicina
+        function findClosestString(frequency) {
+            let closest = null;
+            let minDiff = Infinity;
+            
+            Object.keys(guitarStrings).forEach(note => {
+                const targetFreq = getFrequency(guitarStrings[note].semitone);
+                const diff = Math.abs(frequency - targetFreq);
+                
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = { note, targetFreq, ...guitarStrings[note] };
+                }
+            });
+            
+            return closest;
+        }
+
+        // Calcola i cents (differenza in centesimi di semitono)
+        function getCents(frequency, targetFrequency) {
+            return Math.floor(1200 * Math.log2(frequency / targetFrequency));
+        }
+
+        // Gestione zoom progressivo migliorata
+        function updateZoom(cents) {
+            const absCents = Math.abs(cents);
+            
+            // Zoom basato su range più ampi per evitare cambi troppo frequenti
+            let newZoomLevel = zoomLevel;
+            
+            if (absCents <= 8) {
+                // Molto vicino - zoom fine per affinatura finale
+                newZoomLevel = 3;
+            } else if (absCents <= 25) {
+                // Abbastanza vicino - zoom medio
+                newZoomLevel = 2;
+            } else {
+                // Lontano - vista ampia
+                newZoomLevel = 1;
+            }
+            
+            // Cambio zoom solo se stabile per evitare oscillazioni
+            if (newZoomLevel !== zoomLevel) {
+                const centsVariation = Math.abs(cents - lastCents);
+                
+                // Se la lettura è stabile (variazione piccola)
+                if (centsVariation < 3) {
+                    stableCount++;
+                } else {
+                    stableCount = 0;
+                }
+                
+                // Cambia zoom solo dopo letture stabili
+                if (stableCount >= ZOOM_STABILITY_REQUIRED) {
+                    zoomLevel = newZoomLevel;
+                    stableCount = 0;
+                }
+            } else {
+                stableCount = 0;
+            }
+            
+            lastCents = cents;
+        }
+
+        // Disegna la scala del meter in base allo zoom
+        function drawMeterScale() {
+            const meterScale = document.getElementById('meterScale');
+            meterScale.innerHTML = '';
+            
+            let range, step;
+            
+            switch(zoomLevel) {
+                case 3:
+                    // Zoom fine - affinatura finale
+                    range = 10;  // ±10 cents (prima era ±2, troppo stretto!)
+                    step = 2;
+                    break;
+                case 2:
+                    // Zoom medio - avvicinamento
+                    range = 20;  // ±20 cents (prima era ±10)
+                    step = 5;
+                    break;
+                default:
+                    // Vista ampia - ricerca iniziale
+                    range = 50;  // ±50 cents (invariato)
+                    step = 10;
+            }
+            
+            // Crea i segni sulla scala
+            for (let i = -range; i <= range; i += step) {
+                const mark = document.createElement('div');
+                mark.className = i === 0 ? 'scale-mark center' : 'scale-mark';
+                
+                // Mostra numeri solo sui segni principali
+                if (i % (step * 2) === 0 || i === 0) {
+                    const label = document.createElement('span');
+                    label.className = 'scale-label';
+                    label.textContent = i;
+                    mark.appendChild(label);
+                }
+                
+                meterScale.appendChild(mark);
+            }
+        }
+
+        // Aggiorna il display
+        function updateDisplay(frequency, closestString) {
+            if (!closestString) return;
+            
+            const cents = getCents(frequency, closestString.targetFreq);
+            
+            // Aggiorna zoom
+            updateZoom(cents);
+            drawMeterScale();
+            
+            // Aggiorna nome corda
+            document.getElementById('stringName').textContent = closestString.name;
+            document.getElementById('targetFreq').textContent = `Target: ${closestString.targetFreq.toFixed(2)} Hz`;
+            
+            // Aggiorna frequenza corrente
+            document.getElementById('currentFreq').textContent = frequency.toFixed(2) + ' Hz';
+            document.getElementById('centsDisplay').textContent = `${cents > 0 ? '+' : ''}${cents} cents`;
+            
+            // Aggiorna needle position con animazione fluida
+            const needle = document.getElementById('needle');
+            let range, maxOffset;
+            
+            switch(zoomLevel) {
+                case 3:
+                    range = 10;
+                    maxOffset = 48;  // Percentuale massima spostamento
+                    break;
+                case 2:
+                    range = 20;
+                    maxOffset = 48;
+                    break;
+                default:
+                    range = 50;
+                    maxOffset = 48;
+            }
+            
+            const clampedCents = Math.max(-range, Math.min(range, cents));
+            const offset = (clampedCents / range) * maxOffset;
+            needle.style.left = `calc(50% + ${offset}%)`;
+            
+            // Aggiorna colore needle con tolleranza più ampia
+            const absCents = Math.abs(cents);
+            if (absCents <= 3) {  // Prima era ±2, ora ±3 cents per "perfetto"
+                needle.className = 'needle in-tune';
+            } else {
+                needle.className = 'needle';
+            }
+            
+            // Aggiorna status indicator con messaggi più chiari
+            const statusIndicator = document.getElementById('statusIndicator');
+            if (absCents <= 3) {
+                statusIndicator.className = 'status-indicator status-perfect';
+                statusIndicator.textContent = '✓ Perfetto! Accordatura ottimale';
+                statusIndicator.style.display = 'block';
+            } else if (absCents <= 8) {
+                // Zona quasi perfetta
+                if (cents < 0) {
+                    statusIndicator.className = 'status-indicator status-low';
+                    statusIndicator.textContent = `↓ Quasi perfetto - alza leggermente (${cents} cents)`;
+                } else {
+                    statusIndicator.className = 'status-indicator status-high';
+                    statusIndicator.textContent = `↑ Quasi perfetto - abbassa leggermente (+${cents} cents)`;
+                }
+                statusIndicator.style.display = 'block';
+            } else if (cents < 0) {
+                statusIndicator.className = 'status-indicator status-low';
+                statusIndicator.textContent = `↓ Troppo bassa - alza la tensione (${cents} cents)`;
+                statusIndicator.style.display = 'block';
+            } else {
+                statusIndicator.className = 'status-indicator status-high';
+                statusIndicator.textContent = `↑ Troppo alta - abbassa la tensione (+${cents} cents)`;
+                statusIndicator.style.display = 'block';
+            }
+            
+            // Zoom indicator con descrizioni migliorate
+            const zoomIndicator = document.getElementById('zoomIndicator');
+            if (zoomLevel === 3) {
+                zoomIndicator.textContent = '🎯 AFFINATURA FINALE - Precisione massima (±10 cents)';
+                zoomIndicator.style.color = '#00ff00';
+            } else if (zoomLevel === 2) {
+                zoomIndicator.textContent = '🔍 AVVICINAMENTO - Stai andando bene (±20 cents)';
+                zoomIndicator.style.color = '#ffd700';
+            } else {
+                zoomIndicator.textContent = '📊 VISTA AMPIA - Accorda la corda (±50 cents)';
+                zoomIndicator.style.color = '#888';
+            }
+            
+            // Evidenzia corda attiva
+            document.querySelectorAll('.string-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            const activeCard = document.querySelector(`[data-string="${closestString.note}"]`);
+            if (activeCard) {
+                activeCard.classList.add('active');
+            }
+        }
+
+        // Autocorrelazione per rilevare pitch
+        function autoCorrelate(buffer, sampleRate) {
+            const SIZE = buffer.length;
+            const MAX_SAMPLES = Math.floor(SIZE / 2);
+            let best_offset = -1;
+            let best_correlation = 0;
+            let rms = 0;
+            
+            // Calcola RMS
+            for (let i = 0; i < SIZE; i++) {
+                const val = buffer[i];
+                rms += val * val;
+            }
+            rms = Math.sqrt(rms / SIZE);
+            
+            // Soglia minima
+            if (rms < 0.01) return -1;
+            
+            let lastCorrelation = 1;
+            for (let offset = 1; offset < MAX_SAMPLES; offset++) {
+                let correlation = 0;
+                
+                for (let i = 0; i < MAX_SAMPLES; i++) {
+                    correlation += Math.abs(buffer[i] - buffer[i + offset]);
+                }
+                
+                correlation = 1 - (correlation / MAX_SAMPLES);
+                
+                if (correlation > 0.9 && correlation > lastCorrelation) {
+                    const foundGoodCorrelation = correlation > best_correlation;
+                    if (foundGoodCorrelation) {
+                        best_correlation = correlation;
+                        best_offset = offset;
+                    }
+                }
+                
+                lastCorrelation = correlation;
+            }
+            
+            if (best_correlation > 0.01 && best_offset !== -1) {
+                return sampleRate / best_offset;
+            }
+            
+            return -1;
+        }
+
+        // Processa l'audio
+        function processAudio(event) {
+            const buffer = event.inputBuffer.getChannelData(0);
+            const frequency = autoCorrelate(buffer, audioContext.sampleRate);
+            
+            if (frequency > 0 && frequency >= 70 && frequency <= 400) {
+                const closestString = findClosestString(frequency);
+                updateDisplay(frequency, closestString);
+            }
+        }
+
+        // Mostra/nascondi modal
+        function showMicrophoneModal() {
+            const modal = document.getElementById('microphoneModal');
+            const errorMessage = document.getElementById('errorMessage');
+            const permissionGranted = document.getElementById('permissionGranted');
+            
+            errorMessage.classList.remove('show');
+            permissionGranted.classList.remove('show');
+            modal.classList.add('show');
+        }
+
+        function closeMicrophoneModal() {
+            const modal = document.getElementById('microphoneModal');
+            modal.classList.remove('show');
+        }
+
+        // Richiedi accesso microfono dal modal
+        async function requestMicrophoneAccess() {
+            const errorMessage = document.getElementById('errorMessage');
+            const permissionGranted = document.getElementById('permissionGranted');
+            
+            try {
+                // Richiedi accesso al microfono
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    } 
+                });
+                
+                // Mostra messaggio di successo
+                errorMessage.classList.remove('show');
+                permissionGranted.classList.add('show');
+                
+                // Avvia l'accordatore dopo 1 secondo
+                setTimeout(() => {
+                    closeMicrophoneModal();
+                    startTuner(stream);
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Errore accesso microfono:', error);
+                
+                // Mostra messaggio di errore dettagliato
+                errorMessage.classList.add('show');
+                permissionGranted.classList.remove('show');
+                
+                let errorText = 'L\'accesso al microfono è stato negato. ';
+                
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    errorText = 'Hai negato l\'accesso al microfono. ';
+                } else if (error.name === 'NotFoundError') {
+                    errorText = 'Nessun microfono trovato sul dispositivo. ';
+                } else if (error.name === 'NotReadableError') {
+                    errorText = 'Il microfono è già in uso da un\'altra applicazione. ';
+                }
+                
+                document.getElementById('errorText').innerHTML = errorText + 
+                    '<br><br><strong>Come risolvere:</strong>' +
+                    '<br><br><strong>Chrome/Edge:</strong> Clicca sull\'icona del lucchetto/microfono nella barra degli indirizzi → Impostazioni sito → Microfono → Consenti' +
+                    '<br><br><strong>Firefox:</strong> Clicca sull\'icona del microfono nella barra degli indirizzi → Cancella blocco e ricarica la pagina' +
+                    '<br><br><strong>Safari:</strong> Safari → Preferenze → Siti web → Microfono → Consenti per questo sito';
+            }
+        }
+
+        // Avvia l'accordatore con lo stream audio
+        function startTuner(stream) {
+            try {
+                // Inizializza Web Audio API
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                
+                microphone = audioContext.createMediaStreamSource(stream);
+                scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                microphone.connect(analyser);
+                analyser.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
+                
+                scriptProcessor.onaudioprocess = processAudio;
+                
+                isRunning = true;
+                const btn = document.getElementById('startBtn');
+                const display = document.getElementById('tunerDisplay');
+                
+                btn.textContent = '⏹ Ferma Accordatore';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-danger');
+                display.style.display = 'block';
+                btn.classList.add('listening');
+                
+                drawMeterScale();
+                
+            } catch (error) {
+                alert('Errore nell\'avvio dell\'accordatore: ' + error.message);
+            }
+        }
+
+        // Ferma l'accordatore
+        function stopTuner() {
+            // Ferma tutto
+            if (scriptProcessor) {
+                scriptProcessor.disconnect();
+                scriptProcessor.onaudioprocess = null;
+            }
+            if (microphone) microphone.disconnect();
+            if (analyser) analyser.disconnect();
+            if (audioContext) audioContext.close();
+            
+            isRunning = false;
+            const btn = document.getElementById('startBtn');
+            const display = document.getElementById('tunerDisplay');
+            
+            btn.textContent = '🎤 Avvia Accordatore';
+            btn.classList.remove('btn-danger', 'listening');
+            btn.classList.add('btn-primary');
+            display.style.display = 'none';
+            
+            zoomLevel = 1;
+            stableCount = 0;
+        }
+
+        // Avvia/ferma l'accordatore
+        async function toggleTuner() {
+            if (!isRunning) {
+                // Mostra il modal per richiedere accesso
+                showMicrophoneModal();
+            } else {
+                stopTuner();
+            }
+        }
+
+        // Registra Service Worker per PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then((registration) => {
+                        console.log('Service Worker registrato con successo:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Registrazione Service Worker fallita:', error);
+                    });
+            });
+        }
+
+        // Prompt per installazione PWA
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Mostra un banner/pulsante per installare l'app
+            console.log('App può essere installata!');
+            // Puoi aggiungere un pulsante "Installa App" qui se vuoi
+        });
+    </script>
+</body>
+</html>
